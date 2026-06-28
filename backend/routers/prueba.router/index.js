@@ -17,19 +17,25 @@ const moment = require('moment');
 
 
 clientMqtt.on("connect", async function () {
-    //BUSCO TODOS LOS NODOS NO REPETIDOS
-    const buscarAllnodos = await dispositivo.find().distinct("nodoId");
-    for (var nodo in buscarAllnodos) {
-        arrayTopicsListen.push(buscarAllnodos[nodo].topic);
-        arrayTopicsServer.push(buscarAllnodos[nodo].topicSrvResponse);
-    }
-    //	process.env.ARRAYTOPICOS=arrayTopics;
-    //	process.env.ARRAYTOPICOS_SRV=arrayT_srv;
+    try {
+        //BUSCO TODOS LOS NODOS NO REPETIDOS
+        const buscarAllnodos = await dispositivo.find().distinct("nodoId");
+        for (var nodo in buscarAllnodos) {
+            arrayTopicsListen.push(buscarAllnodos[nodo].topic);
+            arrayTopicsServer.push(buscarAllnodos[nodo].topicSrvResponse);
+        }
 
-    clientMqtt.subscribe(arrayTopicsListen, options, () => {
-        console.log("Subscribed to topics: ");
-        console.log(arrayTopicsListen);
-    });
+        clientMqtt.subscribe(arrayTopicsListen, options, () => {
+            console.log("Subscribed to topics: ");
+            console.log(arrayTopicsListen);
+        });
+    } catch (error) {
+        console.error("[MQTT] No se pudieron cargar topics desde MongoDB:", error.message);
+        clientMqtt.subscribe(arrayTopicsListen, options, () => {
+            console.log("Subscribed to topics (default): ");
+            console.log(arrayTopicsListen);
+        });
+    }
     //console.log(arrayTopicsServer);
     // ['luz1', 'luz2', 'temperatura', 'humedad', 'dispositivoId', 'nombre', 'ubicacion'];
    /*  for (var elemento in arrayTopicsServer) {
