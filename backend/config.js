@@ -1,9 +1,18 @@
 require("dotenv").config();
+const path = require("path");
+
 module.exports = {
     services: {
         API: {
             HOST: process.env.API_HOST || "",
             PORT: process.env.API_PORT || ""
+        },
+        SSL: {
+            ENABLED: process.env.API_SSL_ENABLED === "true",
+            KEY_PATH: process.env.API_SSL_KEY_PATH
+                || path.join(__dirname, "certs", "api-server.key"),
+            CERT_PATH: process.env.API_SSL_CERT_PATH
+                || path.join(__dirname, "certs", "api-server.crt"),
         },
         MQTT: {
             USERNAME: process.env.MQTT_USERNAME || "",

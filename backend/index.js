@@ -1,5 +1,8 @@
 // EXPRESS:
 const express = require("express");
+const fs = require("fs");
+const http = require("http");
+const https = require("https");
 const app = express();
 const errorHandler = require("errorhandler");
 const helmet = require("helmet");
@@ -8,6 +11,7 @@ const config = require("./config");
 var cors = require("cors");
 
 const API_ENV = config.services.API;
+const SSL_ENV = config.services.SSL;
 const registerRoutes = require("./routers");
 const router = Router();
 
@@ -17,14 +21,17 @@ const { startAlarmScheduler } = require("./services/alarmScheduler");
 // Descomentar para usar MySQL
 // require("./storage/database/mysql");
 
-// CORS:
-var corsOptions = {
-  origin: ["https://daiot.com.ar"],
-  optionsSuccessStatus: 200,
-  methods: ["GET", "POST", "OPTIONS"],
-};
-app.use(cors());
-//app.use(cors(corsOptions));
+// CORS: configurable por env (ej: https://tu-app.vercel.app,http://localhost:3001)
+const corsOrigins = process.env.CORS_ORIGINS;
+if (corsOrigins) {
+    app.use(cors({
+        origin: corsOrigins.split(",").map((origin) => origin.trim()),
+        optionsSuccessStatus: 200,
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    }));
+} else {
+    app.use(cors());
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -47,6 +54,32 @@ router.use((err, req, res, next) => {
   res.status(500).send(err.message);
 });
 
-app.listen(API_ENV.PORT, function (req, res) {
-  console.log(`API Funcionando... en: http://${API_ENV.HOST}:${API_ENV.PORT}`);
-});
+const host = API_ENV.HOST || "0.0.0.0";
+const port = API_ENV.PORT || 3000;
+const protocol = SSL_ENV.ENABLED ? "https" : "http";
+
+function onListen() {
+    console.log(`API Funcionando... en: ${protocol}://${host}:${port}`);
+    if (SSL_ENV.ENABLED) {
+        console.log(`SSL activo. Cert: ${SSL_ENV.CERT_PATH}`);
+    }
+}
+
+if (SSL_ENV.ENABLED) {
+    if (!fs.existsSync(SSL_ENV.KEY_PATH) || !fs.existsSync(SSL_ENV.CERT_PATH)) {
+        console.error("SSL habilitado pero faltan certificados.");
+        console.error(`  KEY:  ${SSL_ENV.KEY_PATH}`);
+        console.error(`  CERT: ${SSL_ENV.CERT_PATH}`);
+        console.error("Ejecutar: ./scripts/crea_certs_api.sh <IP_DE_LA_VM>");
+        process.exit(1);
+    }
+
+    const sslOptions = {
+        key: fs.readFileSync(SSL_ENV.KEY_PATH),
+        cert: fs.readFileSync(SSL_ENV.CERT_PATH),
+    };
+
+    https.createServer(sslOptions, app).listen(port, host, onListen);
+} else {
+    http.createServer(app).listen(port, host, onListen);
+}
