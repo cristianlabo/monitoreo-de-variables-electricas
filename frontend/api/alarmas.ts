@@ -1,4 +1,3 @@
-import { log } from "console";
 import { ApiInstnace } from "./../utils"
 import useSWR from "swr"
 
