@@ -1474,7 +1474,7 @@ const Configuracion: NextPage = () => {
         </DialogTitle>
         <DialogContent>
           <Typography>
-            ¿Desea eliminar la configuración de alarma "{alarmaAEliminar?.nombre}"?
+            {`¿Desea eliminar la configuración de alarma "${alarmaAEliminar?.nombre}"?`}
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -1637,7 +1637,7 @@ const Configuracion: NextPage = () => {
         </DialogTitle>
         <DialogContent>
           <Typography>
-            ¿Desea eliminar al usuario "{usuarioAEliminar?.username}"?
+            {`¿Desea eliminar al usuario "${usuarioAEliminar?.username}"?`}
           </Typography>
         </DialogContent>
         <DialogActions>
