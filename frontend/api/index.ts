@@ -1,1 +1,5 @@
 export * from "./dispositivos"
+export * from "./alarmas"
+export * from "./configuracion_alarmas"
+export * from "./user"
+export * from "./consumos"

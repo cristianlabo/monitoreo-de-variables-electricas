@@ -29,5 +29,8 @@ module.exports = {
         }
     },
     ROUTER_PATH: process.env.ROUTER_PATH || "",
-    ENVIRONMENT: process.env.ENVIRONMENT || ""
+    ENVIRONMENT: process.env.ENVIRONMENT || "",
+    ALARM: {
+        CHECK_INTERVAL_HOURS: Number(process.env.ALARM_CHECK_INTERVAL_HOURS) || 1
+    }
 }

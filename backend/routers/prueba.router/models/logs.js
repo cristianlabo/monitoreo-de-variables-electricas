@@ -3,20 +3,37 @@ const mongoose = require('mongoose');
 const logsSchema = mongoose.Schema({
     logId: {
         type: Number,
-        require: true
+        required: true
     },
     ts: {
         type: Date,
-        require: true,
-        default: new Date()//.getTime()
+        required: true,
+        default: Date.now
     },
-    etemperatura: {
-        type: Number,
+    vrms: {
+        type: Number
+    },
+    irms: {
+        type: Number
+    },
+    potencia_activa: {
+        type: Number
+    },
+    potencia_reactiva: {
+        type: Number
+    },
+    potencia_aparente: {
+        type: Number
+    },
+    cos_phi: {
+        type: Number
     },
     nodoId: {
         type: Number,
-        require: true
+        required: true
     }
+}, {
+    versionKey: false
 });
 
 module.exports = mongoose.model('Logs', logsSchema);

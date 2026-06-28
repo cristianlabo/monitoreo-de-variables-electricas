@@ -13,6 +13,7 @@ const router = Router();
 
 // Descomentar para usar mongoDB
 require('./storage/database/mongo');
+const { startAlarmScheduler } = require("./services/alarmScheduler");
 // Descomentar para usar MySQL
 // require("./storage/database/mysql");
 
@@ -38,6 +39,8 @@ router.use(errorHandler());
 app.use(router);
 //REGISTRO DE RUTAS
 registerRoutes(router);
+
+startAlarmScheduler().catch((err) => console.error("Alarm scheduler failed to start:", err));
 
 router.use((err, req, res, next) => {
   console.log(err);

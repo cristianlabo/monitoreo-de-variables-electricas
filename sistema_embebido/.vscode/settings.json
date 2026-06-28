@@ -4,9 +4,18 @@
   "idf.port": "/dev/ttyUSB0",
   "idf.adapterTargetName": "esp32",
   "files.associations": {
-    "mqtt_client.h": "c"
+    "mqtt_client.h": "c",
+    "*.inc": "c"
   },
   "idf.openOcdConfigs": [
-    "board/esp32-bridge.cfg"
-  ]
+    "board/esp32-wrover-kit-3.3v.cfg"
+  ],
+  "idf.pythonInstallPath": "/usr/bin/python3",
+  "idf.espIdfPath": "/home/cristian/esp/v4.4.7/esp-idf",
+  "idf.toolsPath": "/home/cristian/.espressif",
+  "idf.customExtraVars": {
+    "OPENOCD_SCRIPTS": "/home/cristian/.espressif/tools/openocd-esp32/v0.12.0-esp32-20230921/openocd-esp32/share/openocd/scripts",
+    "IDF_TARGET": "esp32"
+  },
+  "idf.currentSetup": "/home/cristian/esp/v4.4.7/esp-idf"
 }

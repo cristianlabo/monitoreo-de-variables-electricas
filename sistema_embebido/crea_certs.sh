@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -- Set local IP --
-IP="192.168.0.20"
+IP="192.168.0.101"
 
 SUBJECT_CA="/C=AR/ST=CABA/L=CABA/O=FiUBA/OU=CA/CN=$IP"
 SUBJECT_SERVER="/C=AR/ST=CABA/L=CABA/O=FiUBA/OU=Server/CN=$IP"
@@ -26,12 +26,24 @@ function generate_client () {
 }
 
 function copy_keys_to_broker () {
-   cp ca.crt ../mosquitto/certs/
-   cp server.crt ../mosquitto/certs/
-   cp server.key ../mosquitto/certs/
+   #broker mosquitto
+   cp ca.crt /etc/mosquitto/certs
+   cp server.crt /etc/mosquitto/certs
+   cp server.key /etc/mosquitto/certs
+   #backed
+   cp ca.crt /home/cristian/DDA3/TPFINAL/backend
+   cp client.crt /home/cristian/DDA3/TPFINAL/backend
+   cp client.key /home/cristian/DDA3/TPFINAL/backend
+   #esp32
+   cp ca.crt ./main/broker_CA.crt
+   cp client.crt ./main
+   cp client.key ./main
+   #reinciamos mosquitto
+   systemctl restart mosquitto
 }
+
 
 generate_CA
 generate_server
 generate_client
-#copy_keys_to_broker
+copy_keys_to_broker

@@ -1,0 +1,203 @@
+db.dispositivos.insertOne({
+    dispositivoId: 2,
+    nombre: "ESP32_MEDIDOR_TALLER",
+    ubicacion: "CASA FONDO",
+    vrms: 220,
+    irms: 0,
+    potencia_activa: 0,
+    potencia_reactiva: 0,
+    potencia_aparente: 0,
+    cos_phi: 1,
+    topic: "/CASA/FONDO/ENERGIA_ELECTRICA",
+    topicSrvResponse: "/CASA/FONDO/ENERGIA_ELECTRICA"
+})
+
+
+db.logs.insertOne({
+    logId: 2,
+    ts: new Date(),
+    vrms: 220,
+    irms: 0,
+    potencia_activa: 0,
+    potencia_reactiva: 0,
+    potencia_aparente: 0,
+    cos_phi: 1,
+    nodoId: 2
+})
+
+
+
+
+db.createCollection("alarmas")
+
+db.alarmas.insertMany([
+{
+    alarmaId: 1,
+    dispositivoId: 1,
+    nombre: "ESP32_SCT013_ZMPT101B_ENERGIA_ELECTRICA",
+    ubicacion: "CASA FRENTE",
+    tipoAlarma: "consumo_excedido",
+    descripcion: "Se excedió el consumo mensual",
+    consumoActual: 115,
+    consumoLimite: 100,
+    unidad: "kWh",
+    periodo: "mensual",
+    estado: "activa",
+    fechaEvento: new Date()
+},
+{
+    alarmaId: 2,
+    dispositivoId: 1,
+    nombre: "ESP32_SCT013_ZMPT101B_ENERGIA_ELECTRICA",
+    ubicacion: "CASA FRENTE",
+    tipoAlarma: "factura_vigente",
+    descripcion: "La factura se encuentra próxima a vencer",
+    fechaVencimiento: "2026-06-10",
+    diasRestantes: 5,
+    estado: "activa",
+    fechaEvento: new Date()
+}
+])
+
+
+
+db.alarmas.insertMany([
+
+{
+    alarmaId: 3,
+    dispositivoId: 2,
+    nombre: "ESP32_MEDIDOR_TALLER",
+    ubicacion: "CASA FONDO",
+
+    tipoAlarma: "consumo_excedido",
+    descripcion: "Se excedió el consumo mensual",
+
+    consumoActual: 185,
+    consumoLimite: 150,
+    unidad: "kWh",
+    periodo: "mensual",
+
+    estado: "activa",
+
+    fechaEvento: new Date()
+},
+
+{
+    alarmaId: 4,
+    dispositivoId: 2,
+    nombre: "ESP32_MEDIDOR_TALLER",
+    ubicacion: "CASA FONDO",
+
+    tipoAlarma: "factura_vigente",
+    descripcion: "La factura se encuentra próxima a vencer",
+
+    fechaVencimiento: "2026-06-15",
+    diasRestantes: 4,
+
+    estado: "activa",
+
+    fechaEvento: new Date()
+}
+
+])
+
+
+db.configuracion_alarmas.insertMany([
+
+{
+    alarmaId: 1,
+    dispositivoId: 1,
+    nombre: "ESP32_SCT013_ZMPT101B_ENERGIA_ELECTRICA",
+    ubicacion: "CASA FRENTE",
+
+    tipoAlarma: "CONSUMO_EXCEDIDO",
+    habilitada: true,
+
+    consumoLimite: 250,
+    unidad: "kWh",
+    periodo: "MENSUAL",
+
+    prioridad: "MEDIA",
+
+    mensaje: "Consumo mensual excedido",
+
+    fechaCreacion: new Date(),
+    fechaActualizacion: new Date()
+},
+
+{
+    alarmaId: 2,
+    dispositivoId: 1,
+    nombre: "ESP32_SCT013_ZMPT101B_ENERGIA_ELECTRICA",
+    ubicacion: "CASA FRENTE",
+
+    tipoAlarma: "PAGO_FACTURA",
+    habilitada: true,
+
+    diasAnticipacion: 5,
+    fechaVencimiento: new Date("2026-06-15"),
+
+    prioridad: "ALTA",
+
+    mensaje: "Factura próxima a vencer",
+
+    fechaCreacion: new Date(),
+    fechaActualizacion: new Date()
+},
+
+{
+    alarmaId: 3,
+    dispositivoId: 2,
+    nombre: "ESP32_MEDIDOR_TALLER",
+    ubicacion: "CASA FONDO",
+
+    tipoAlarma: "CONSUMO_EXCEDIDO",
+    habilitada: true,
+
+    consumoLimite: 180,
+    unidad: "kWh",
+    periodo: "MENSUAL",
+
+    prioridad: "MEDIA",
+
+    mensaje: "Consumo mensual excedido",
+
+    fechaCreacion: new Date(),
+    fechaActualizacion: new Date()
+},
+
+{
+    alarmaId: 4,
+    dispositivoId: 2,
+    nombre: "ESP32_MEDIDOR_TALLER",
+    ubicacion: "CASA FONDO",
+
+    tipoAlarma: "PAGO_FACTURA",
+    habilitada: true,
+
+    diasAnticipacion: 7,
+    fechaVencimiento: new Date("2026-06-20"),
+
+    prioridad: "ALTA",
+
+    mensaje: "Factura próxima a vencer",
+
+    fechaCreacion: new Date(),
+    fechaActualizacion: new Date()
+}
+
+])
+
+
+db.users.insertOne({
+    username: "cristian",
+    password: "1234",
+    email: "cmg263@gmail.com",
+    role: "USER",
+    enabled: true,
+    createdAt: new Date()
+})
+
+
+
+
