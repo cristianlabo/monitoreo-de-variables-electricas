@@ -21,17 +21,36 @@ const { startAlarmScheduler } = require("./services/alarmScheduler");
 // Descomentar para usar MySQL
 // require("./storage/database/mysql");
 
-// CORS: configurable por env (ej: https://tu-app.vercel.app,http://localhost:3001)
-const corsOrigins = process.env.CORS_ORIGINS;
-if (corsOrigins) {
-    app.use(cors({
-        origin: corsOrigins.split(",").map((origin) => origin.trim()),
-        optionsSuccessStatus: 200,
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    }));
-} else {
-    app.use(cors());
+// CORS: front Vercel + desarrollo local (+ extras por CORS_ORIGINS)
+const DEFAULT_CORS_ORIGINS = [
+    "https://monitoreo-de-variables-electricas-6.vercel.app",
+    "http://localhost:3001",
+];
+
+const extraCorsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
+    : [];
+
+const allowedCorsOrigins = [...DEFAULT_CORS_ORIGINS, ...extraCorsOrigins];
+
+function isAllowedCorsOrigin(origin) {
+    if (!origin) return true;
+    if (allowedCorsOrigins.includes(origin)) return true;
+    if (/^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) return true;
+    return false;
 }
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (isAllowedCorsOrigin(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error(`CORS not allowed: ${origin}`));
+        }
+    },
+    optionsSuccessStatus: 200,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
