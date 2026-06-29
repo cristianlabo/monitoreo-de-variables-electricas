@@ -539,7 +539,7 @@ static void http_get_task(void *pvParameters)
 
 
 // Set your local broker URI
-#define BROKER_URI "mqtts://192.168.0.101:8883"
+#define BROKER_URI "mqtts://163.176.32.93:8883"
 
 //static const char *TAG = "MQTTS_EXAMPLE";
 

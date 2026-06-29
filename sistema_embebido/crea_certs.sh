@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -- Set local IP --
-IP="192.168.0.101"
+IP="163.176.32.93"
 
 SUBJECT_CA="/C=AR/ST=CABA/L=CABA/O=FiUBA/OU=CA/CN=$IP"
 SUBJECT_SERVER="/C=AR/ST=CABA/L=CABA/O=FiUBA/OU=Server/CN=$IP"
