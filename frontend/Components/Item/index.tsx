@@ -1,6 +1,7 @@
 import React from "react"
 import Link from 'next/link'
 import { Paper, Typography, Grid } from "@mui/material"
+import { formatDateTime } from "../../utils"
 
 // controla el home de dispositivos
 
@@ -148,25 +149,7 @@ export const ItemLog = ({
                 </Typography>
 
                 <Typography variant="h6">
-                    : {
-                    new Date(ts).toLocaleString(
-                        'es-AR',
-                        {
-                        timeZone:
-                            'America/Argentina/Buenos_Aires',
-
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-
-                        hour12: false
-                        }
-                    )
-                    }
+                    : {formatDateTime(ts)}
                 </Typography>
                 </div>
                 <div style={{ display: "flex" }}>

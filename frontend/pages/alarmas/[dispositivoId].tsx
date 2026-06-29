@@ -35,6 +35,8 @@ from '@mui/icons-material/LinkedIn'
 import InstagramIcon
 from '@mui/icons-material/Instagram'
 
+import { formatDateTimeShort } from "../../utils"
+
 const DispositivoId: NextPage = () => {
 
   const router =
@@ -349,17 +351,7 @@ const DispositivoId: NextPage = () => {
                     </TableCell>
 
                     <TableCell>
-                      {
-                        new Date(
-                          element.fechaEvento
-                        ).toLocaleString(
-                          "es-AR",
-                          {
-                            hour12:
-                              false
-                          }
-                        )
-                      }
+                      {formatDateTimeShort(element.fechaEvento)}
                     </TableCell>
 
                     <TableCell

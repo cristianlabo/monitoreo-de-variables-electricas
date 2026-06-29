@@ -24,6 +24,8 @@ import {
 import WarningAmberIcon
 from '@mui/icons-material/WarningAmber'
 
+import { formatDateTimeShort } from "../../utils"
+
 import GitHubIcon
 from '@mui/icons-material/GitHub'
 
@@ -326,17 +328,7 @@ const Alarmas: NextPage = () => {
 
 
                   <TableCell>
-                    {
-                      new Date(
-                        element.fechaEvento
-                      ).toLocaleString(
-                        "es-AR",
-                        {
-                          hour12:
-                            false
-                        }
-                      )
-                    }
+                    {formatDateTimeShort(element.fechaEvento)}
                   </TableCell>
 
                   <TableCell

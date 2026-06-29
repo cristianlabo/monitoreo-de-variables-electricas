@@ -25,6 +25,12 @@ import {
 import BoltIcon
 from "@mui/icons-material/Bolt"
 
+import {
+  formatDate,
+  formatDateTimeShort,
+  formatTime,
+} from "../../utils"
+
 import GitHubIcon
 from '@mui/icons-material/GitHub'
 
@@ -107,55 +113,20 @@ const DispositivoId: NextPage = () => {
         const fecha =
           new Date(log.ts)
 
-        const diaActual =
-          fecha.toLocaleDateString(
-            "es-AR",
-            {
-              timeZone:
-                "America/Argentina/Buenos_Aires",
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric"
-            }
-          )
+        const diaActual = formatDate(fecha)
 
         const diaAnterior =
           index > 0
-            ? new Date(
-                array[
-                  index - 1
-                ].ts
-              ).toLocaleDateString(
-                "es-AR",
-                {
-                  timeZone:
-                    "America/Argentina/Buenos_Aires",
-                  day:
-                    "2-digit",
-                  month:
-                    "2-digit",
-                  year:
-                    "numeric"
-                }
+            ? formatDate(
+                new Date(
+                  array[index - 1].ts
+                )
               )
             : null
 
         return {
 
-          hora:
-            fecha.toLocaleTimeString(
-              "es-AR",
-              {
-                timeZone:
-                  "America/Argentina/Buenos_Aires",
-                hour:
-                  "2-digit",
-                minute:
-                  "2-digit",
-                hour12:
-                  false
-              }
-            ),
+          hora: formatTime(fecha),
 
           dia:
             diaActual !==
@@ -503,19 +474,7 @@ const DispositivoId: NextPage = () => {
                       </TableCell>
 
                       <TableCell>
-                        {
-                          new Date(
-                            element.ts
-                          ).toLocaleString(
-                            "es-AR",
-                            {
-                              timeZone:
-                                "America/Argentina/Buenos_Aires",
-                              hour12:
-                                false
-                            }
-                          )
-                        }
+                        {formatDateTimeShort(element.ts)}
                       </TableCell>
 
                       <TableCell align="center">
