@@ -63,11 +63,14 @@
 
 /* Calibración 2‑puntos para tensión  (RELLENA con tus datos) */
 
-#define V_LOW_REAL            0.001f//50.0f
-#define V_HIGH_REAL           226.5f            // tensión nominal real
-#define V_LOW_RAW             0.001f// 0.155f  andaba a tope izquierdo pote           // Vrms_sensor a 0 V
-#define V_HIGH_RAW            0.449f// 0.76f     andaba a tope izquierdo pote       // Vrms_sensor a 227.9 V
+#define V_LOW_REAL            0.0f
+#define V_HIGH_REAL           239.0f            // multimetro de referencia
+#define V_LOW_RAW             0.0f
+#define V_HIGH_RAW            0.4783f           // vrms_raw medido sin carga a 239 V
 #define P_REF                 1.1// factor de correcion potencia activa
+
+/* El SCT013 induce ~1.8 V de lectura fantasma en el ZMPT por cada A de carga */
+#define V_CORRECCION_POR_AMP    1.8f
 
 static const float mV = (V_HIGH_REAL - V_LOW_REAL) / (V_HIGH_RAW - V_LOW_RAW);
 static const float bV = V_LOW_REAL - mV * V_LOW_RAW;
@@ -111,8 +114,8 @@ static float buffer[MEDIA_MUESTRAS] = {0};  // Buffer para almacenar las muestra
 static int indice = 0;                      // Índice para el buffer
 static bool buffer_lleno = false;           // Indicador si el buffer está lleno
 
-float ALPHA = 0.2f;  // ALPHA normal para suavizar
-float UMBRAL_CAMBIO = 7.0f;  // Umbral para detectar cambios bruscos (puedes ajustarlo)
+float ALPHA = 0.55f;              // suavizado corriente / tension en cambios graduales
+float UMBRAL_CAMBIO = 1.5f;       // V: seguir cambios de red (carga on/off) en 1-2 ciclos
 float ultima_tension = 0.0f;  // Para detectar cambios bruscos
 
 float UMBRAL_TENSION_MEDIBLE = 15.0f;  // Umbral TENSION minimo de medicion
@@ -128,117 +131,109 @@ static float Irms_filtrado = 0.0f;   // Valor suavizado de corriente
 static float buffer_i[MEDIA_MUESTRAS_I] = {0};  // Buffer de corriente
 static int indice_i = 0;             // Índice del buffer
 static bool buffer_lleno_i = false;  // Indicador de buffer lleno
+static float irms_para_corr = 0.0f;  // corriente del ciclo actual para compensar V
+static bool reset_v_filtro = false;
 
+static void reset_filtro_vrms(void)
+{
+    Vrms_filtrado = 0.0f;
+    reset_v_filtro = true;
+}
 
+/* Buffers para capturar una ventana completa antes de quitar DC (evita error por re-leer ADC) */
+static float buf_muestras_v[NUM_MUESTRAS];
+static float buf_muestras_i[NUM_MUESTRAS];
 
+static float median3(float a, float b, float c)
+{
+    if (a > b) { float t = a; a = b; b = t; }
+    if (b > c) { float t = b; b = c; c = t; }
+    if (a > b) { float t = a; a = b; b = t; }
+    return b;
+}
+
+/* Quita el DC de la ventana actual (compensa deriva térmica del ZMPT101B) */
+static float rms_ac_de_buffer(const float *buf, int muestras, float *dc_out)
+{
+    double sum = 0.0;
+    for (int i = 0; i < muestras; ++i) {
+        sum += buf[i];
+    }
+    float mean = (float)(sum / muestras);
+    if (dc_out) {
+        *dc_out = mean;
+    }
+    float sum2 = 0.0f;
+    for (int i = 0; i < muestras; ++i) {
+        float ac = buf[i] - mean;
+        sum2 += ac * ac;
+    }
+    return sqrtf(sum2 / muestras);
+}
 
 float calcular_vrms(adc1_channel_t canal_adc, int muestras)
 {
-    double acc = 0.0;
-    float sum2 = 0.0f;
-    uint32_t raw;
-
-    // 1. Offset dinámico
     for (int i = 0; i < muestras; ++i) {
-        raw  = adc1_get_raw(canal_adc);
-        acc += raw_to_volt(raw);
+        buf_muestras_v[i] = raw_to_volt(adc1_get_raw(canal_adc));
         ets_delay_us(FS_US);
     }
-    float offset = acc / muestras;
 
-    // 2. RMS crudo
-    for (int i = 0; i < muestras; ++i) {
-        raw  = adc1_get_raw(canal_adc);
-        float v = raw_to_volt(raw) - offset;
-        sum2 += v * v;
-        ets_delay_us(FS_US);
+    float dc_mean = 0.0f;
+    float vrms_raw = rms_ac_de_buffer(buf_muestras_v, muestras, &dc_mean);
+    float vrms_bruto = mV * vrms_raw + bV;
+    float vrms_real = vrms_bruto - V_CORRECCION_POR_AMP * irms_para_corr;
+    if (vrms_real < 0.0f) {
+        vrms_real = 0.0f;
     }
-    float vrms_raw = sqrtf(sum2 / muestras);
+    ESP_LOGI(TAG, "dc_mean=%.4f V, vrms_raw=%.4f -> vrms_corr=%.1f V (I=%.2f A)",
+             dc_mean, vrms_raw, vrms_real, irms_para_corr);
 
-    // 3. Escala lineal calibrada
-    float vrms_real = mV * vrms_raw + bV;
-
-
-
-    // 4. Media Móvil Simple
-    buffer[indice] = vrms_real;  // Guardar la medida actual en el buffer
-    indice++;                    // Mover el índice para la siguiente muestra
-
-    // Si el buffer está lleno, volver a empezar en el índice 0
-    if (indice >= MEDIA_MUESTRAS) {
-        indice = 0;
-        buffer_lleno = true;
+    /* Mediana de 3 ciclos: filtra ruido sin ocultar cambios sostenidos de la red */
+    static float v_hist[3] = {0};
+    static int v_hi = 0;
+    static int v_n = 0;
+    if (reset_v_filtro) {
+        memset(v_hist, 0, sizeof(v_hist));
+        v_hi = 0;
+        v_n = 0;
+        reset_v_filtro = false;
     }
-
-    // 5. Promediar las muestras guardadas en el buffer (SMA)
-    float promedio = 0.0f;
-    int muestras_validas = buffer_lleno ? MEDIA_MUESTRAS : indice;  // Si el buffer está lleno, usar todo
-    for (int i = 0; i < muestras_validas; ++i) {
-        promedio += buffer[i];  // Sumar todas las muestras en el buffer
+    v_hist[v_hi] = vrms_real;
+    v_hi = (v_hi + 1) % 3;
+    if (v_n < 3) {
+        v_n++;
+    }
+    float v_in = vrms_real;
+    if (v_n == 3) {
+        v_in = median3(v_hist[0], v_hist[1], v_hist[2]);
     }
 
-    ESP_LOGI(TAG, "Valores del Buffer de Tensión:");
-    for (int i = 0; i < MEDIA_MUESTRAS; i++) {
-        ESP_LOGI(TAG, "Muestra %d: %.2f V", i, buffer[i]);
-    }
-
-    promedio /= muestras_validas;  // Calcular el promedio de las muestras
-
-    // 6. Suavizado con EMA (Media Móvil Exponencial)
-    // 6. Comparar el valor actual con el promedio para detectar cambios bruscos
-    if (fabs(vrms_real - promedio) > UMBRAL_CAMBIO) {
-        // Si el cambio es mayor que el umbral, actualizar con el valor actual
-        Vrms_filtrado = vrms_real;
-
-        // Limpiar el buffer y reiniciar el índice
-        memset(buffer, 0, sizeof(buffer));  // Limpiar el buffer
-        indice = 0;  // Reiniciar el índice
-        buffer_lleno = false;  // Marcar que el buffer no está lleno
-        buffer_lleno_i = false;
-        ESP_LOGI(TAG, "Cambio brusco detectado, limpiando buffer.");
+    if (Vrms_filtrado == 0.0f) {
+        Vrms_filtrado = v_in;
+    } else if (fabsf(v_in - Vrms_filtrado) > UMBRAL_CAMBIO) {
+        Vrms_filtrado = v_in;
+        ESP_LOGI(TAG, "Cambio de tension en red: %.1f V", v_in);
     } else {
-        // Si no, usar el promedio suavizado
-        if (Vrms_filtrado == 0.0f) {
-            Vrms_filtrado = promedio;  // Establecer el primer valor de promedio como base
-        }
-        // 7. Suavizado con EMA (Media Móvil Exponencial)
-        Vrms_filtrado = ALPHA * vrms_real + (1.0f - ALPHA) * Vrms_filtrado;
+        Vrms_filtrado = ALPHA * v_in + (1.0f - ALPHA) * Vrms_filtrado;
     }
 
-    if(Vrms_filtrado < UMBRAL_TENSION_MEDIBLE)
+    if (Vrms_filtrado < UMBRAL_TENSION_MEDIBLE)
         Vrms_filtrado = 0;
 
-    return Vrms_filtrado;  // Devolver el valor suavizado
+    return Vrms_filtrado;
 }
 
 
 float calcular_irms(adc1_channel_t canal_adc, int muestras, float sensibilidad)
 {
-    double acc = 0.0;
-    float sum2 = 0.0f;
-    uint32_t raw;
-
-    // 1. Offset dinámico
     for (int i = 0; i < muestras; ++i) {
-        raw  = adc1_get_raw(canal_adc);
-        acc += raw_to_volt(raw);
+        buf_muestras_i[i] = raw_to_volt(adc1_get_raw(canal_adc));
         ets_delay_us(FS_US);
     }
-    float offset = acc / muestras;
 
-    // 2. RMS crudo
-    for (int i = 0; i < muestras; ++i) {
-        raw  = adc1_get_raw(canal_adc);
-        float v = raw_to_volt(raw) - offset;
-        sum2 += v * v;
-        ets_delay_us(FS_US);
-    }
-    float vrms_raw = sqrtf(sum2 / muestras);
-
-    // 3. Convertir voltaje RMS en corriente usando sensibilidad
+    float vrms_raw = rms_ac_de_buffer(buf_muestras_i, muestras, NULL);
     float irms = vrms_raw / sensibilidad;
 
-    // 4. Media móvil simple para corriente
     buffer_i[indice_i] = irms;
     indice_i++;
 
@@ -247,27 +242,19 @@ float calcular_irms(adc1_channel_t canal_adc, int muestras, float sensibilidad)
         buffer_lleno_i = true;
     }
 
-    ESP_LOGI(TAG, "Valores del Buffer de Corriente:");
-    for (int i = 0; i < MEDIA_MUESTRAS_I; i++) {
-        ESP_LOGI(TAG, "Muestra %d: %.2f A", i, buffer_i[i]);
-    }
-
     float promedio = 0.0f;
     int muestras_validas = buffer_lleno_i ? MEDIA_MUESTRAS_I : indice_i;
     for (int i = 0; i < muestras_validas; ++i) {
         promedio += buffer_i[i];
     }
-
     promedio /= muestras_validas;
 
-    // 5. Detección de cambios bruscos y limpieza de buffer
     if (fabs(irms - promedio) > UMBRAL_CAMBIO_I) {
         Irms_filtrado = irms;
         memset(buffer_i, 0, sizeof(buffer_i));
         indice_i = 0;
         buffer_lleno_i = false;
-        buffer_lleno = false;
-        ESP_LOGI(TAG, "Cambio brusco de corriente detectado, limpiando buffer.");
+        ESP_LOGI(TAG, "Cambio brusco de corriente detectado, buffer I reiniciado.");
     } else {
         if (Irms_filtrado == 0.0f)
             Irms_filtrado = promedio;
@@ -280,6 +267,61 @@ float calcular_irms(adc1_channel_t canal_adc, int muestras, float sensibilidad)
     return Irms_filtrado;
 }
 
+/* Potencia activa: misma correccion de V que en Vrms para que P <= S */
+static float calcular_potencia_activa(adc1_channel_t canal_v, adc1_channel_t canal_i, int muestras, float sensibilidad_ct, float irms_corr)
+{
+    for (int n = 0; n < muestras; ++n) {
+        buf_muestras_v[n] = raw_to_volt(adc1_get_raw(canal_v));
+        buf_muestras_i[n] = raw_to_volt(adc1_get_raw(canal_i));
+        ets_delay_us(FS_US);
+    }
+
+    double sum_v = 0.0, sum_i = 0.0;
+    for (int n = 0; n < muestras; ++n) {
+        sum_v += buf_muestras_v[n];
+        sum_i += buf_muestras_i[n];
+    }
+    float mean_v = (float)(sum_v / muestras);
+    float mean_i = (float)(sum_i / muestras);
+
+    float sum2_v = 0.0f;
+    for (int n = 0; n < muestras; ++n) {
+        float ac = buf_muestras_v[n] - mean_v;
+        sum2_v += ac * ac;
+    }
+    float vrms_bruto = mV * sqrtf(sum2_v / muestras);
+    float factor_v = 1.0f;
+    if (irms_corr > 0.15f && vrms_bruto > 5.0f) {
+        float vrms_corr = vrms_bruto - V_CORRECCION_POR_AMP * irms_corr;
+        if (vrms_corr > 0.0f) {
+            factor_v = vrms_corr / vrms_bruto;
+        }
+    }
+
+    float suma_p = 0.0f;
+    #define RETARDO_MUESTRAS 3
+    float buffer_v_delay[RETARDO_MUESTRAS] = {0};
+    int indice_delay = 0;
+
+    for (int n = 0; n < muestras; ++n) {
+        float v_ac = mV * (buf_muestras_v[n] - mean_v) * factor_v;
+        float i_inst = (buf_muestras_i[n] - mean_i) / sensibilidad_ct;
+
+        buffer_v_delay[indice_delay] = v_ac;
+        int indice_v_adelantado = (indice_delay + 1) % RETARDO_MUESTRAS;
+        float v_delay = buffer_v_delay[indice_v_adelantado];
+        indice_delay = (indice_delay + 1) % RETARDO_MUESTRAS;
+
+        suma_p += v_delay * i_inst;
+    }
+
+    float p_activa = suma_p / muestras;
+    if (p_activa < UMBRAL_POTENCIA_MEDIBLE)
+        p_activa = 0;
+    return p_activa;
+}
+
+#if 0 /* calcular_todo_filtrado: version anterior (revertir si hace falta) */
 float calcular_todo_filtrado(adc1_channel_t canal_v, adc1_channel_t canal_i, int muestras, float sensibilidad_ct, float *Vrms_out, float *Irms_out) {
     float acc_v = 0.0, acc_i = 0.0;
     uint32_t raw_v, raw_i;
@@ -403,7 +445,7 @@ float calcular_todo_filtrado(adc1_channel_t canal_v, adc1_channel_t canal_i, int
 
     return p_activa;
 }
-
+#endif
 
 static void http_get_task(void *pvParameters)
 {
@@ -411,6 +453,7 @@ static void http_get_task(void *pvParameters)
     esp_mqtt_client_handle_t client = task_params->client;
     
     init_adc();
+    vTaskDelay(pdMS_TO_TICKS(500));
 
     // Convertir a voltaje real
    
@@ -423,6 +466,9 @@ static void http_get_task(void *pvParameters)
 
     float vrms = 0;
     float irms = 0;
+    float irms_anterior = 0.0f;
+    int ciclos_desde_cambio_carga = 99;
+    float cos_phi_estable = 0.99f;
     float potencia_aparente = 0;
     float potencia_activa = 0;
     float potencia_reactiva = 0;
@@ -435,12 +481,25 @@ static void http_get_task(void *pvParameters)
     while(1) {
 
 
-            potencia_activa = calcular_todo_filtrado(ADC_CHANNEL_VOLTAGE, ADC_CHANNEL_CURRENT, NUM_MUESTRAS, SENSIBILIDAD_CT, &vrms, &irms)*P_REF;
-            vrms = calcular_vrms(ADC_CHANNEL_VOLTAGE, NUM_MUESTRAS);
             irms = calcular_irms(ADC_CHANNEL_CURRENT, NUM_MUESTRAS, SENSIBILIDAD_CT);
-            potencia_aparente = vrms * irms;
+            if (irms < 0.1f) {
+                irms = 0.0f;
+            }
+            irms_para_corr = irms;
+            if (fabsf(irms - irms_anterior) > 0.4f) {
+                reset_filtro_vrms();
+                ciclos_desde_cambio_carga = 0;
+                ESP_LOGI(TAG, "Cambio de carga: I=%.2f A, reinicio filtro V", irms);
+            } else if (ciclos_desde_cambio_carga < 10) {
+                ciclos_desde_cambio_carga++;
+            }
+            irms_anterior = irms;
 
-            if(irms < 0.1){
+            vrms = calcular_vrms(ADC_CHANNEL_VOLTAGE, NUM_MUESTRAS);
+            potencia_aparente = vrms * irms;
+            potencia_activa = calcular_potencia_activa(ADC_CHANNEL_VOLTAGE, ADC_CHANNEL_CURRENT, NUM_MUESTRAS, SENSIBILIDAD_CT, irms) * P_REF;
+
+            if (irms < 0.1){
                 irms = 0;
                 potencia_activa = 0;
                 potencia_aparente = 0;
@@ -449,14 +508,30 @@ static void http_get_task(void *pvParameters)
                 
             
             if(potencia_activa == 0 || potencia_aparente == 0){
-                cos_phi = 0.99;
+                cos_phi = 0.99f;
                 potencia_reactiva = 0;
+                cos_phi_estable = 0.99f;
             }
             else{
-
+                if (potencia_activa > potencia_aparente) {
+                    potencia_activa = potencia_aparente * 0.98f;
+                }
                 cos_phi = potencia_activa / potencia_aparente;
-                potencia_reactiva = sqrtf( fabsf((potencia_aparente * potencia_aparente) -(potencia_activa * potencia_activa)));
+                if (cos_phi > 1.0f) {
+                    cos_phi = 1.0f;
+                }
+                if (cos_phi < 0.0f) {
+                    cos_phi = 0.0f;
+                }
+                potencia_reactiva = sqrtf(fmaxf(0.0f,
+                    (potencia_aparente * potencia_aparente) - (potencia_activa * potencia_activa)));
 
+                /* Durante transicion de carga, no mostrar cos(phi) invalido */
+                if (ciclos_desde_cambio_carga < 3) {
+                    cos_phi = cos_phi_estable;
+                } else {
+                    cos_phi_estable = cos_phi;
+                }
             }
 
             // Inicializar I2C y SSD1306

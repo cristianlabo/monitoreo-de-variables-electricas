@@ -23,7 +23,7 @@ const { startAlarmScheduler } = require("./services/alarmScheduler");
 
 // CORS: front Vercel + desarrollo local (+ extras por CORS_ORIGINS)
 const DEFAULT_CORS_ORIGINS = [
-    "https://monitoreo-de-variables-electricas-6.vercel.app",
+    "https://monitoreo-de-variables-electricas.vercel.app",
     "http://localhost:3001",
 ];
 
